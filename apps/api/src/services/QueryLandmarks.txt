@@ -1,0 +1,14 @@
+const query = `
+      [out:json][timeout:25];
+      (
+        node["amenity"~"marketplace|bank|pharmacy|hospital|restaurant|cafe"](around:${radius},${lat},${lon});
+        way["amenity"~"marketplace|bank|pharmacy|hospital|restaurant|cafe"](around:${radius},${lat},${lon});
+        node["building"~"commercial|retail|office"](around:${radius},${lat},${lon});
+        way["building"~"commercial|retail|office"](around:${radius},${lat},${lon});
+        node["historic"~"monument|memorial"](around:${radius},${lat},${lon});
+        node["leisure"~"park|playground|stadium"](around:${radius},${lat},${lon});
+      );
+      out body;
+      >;
+      out skel qt;
+    `;

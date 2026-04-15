@@ -1,0 +1,23 @@
+{
+    "name": "@packages/database",
+    "version": "0.1.0",
+    "type": "module",
+    "private": true,
+    "main": "src/index.ts",
+    "types": "src/index.ts",
+    "scripts": {
+        "build": "tsc",
+        "lint": "eslint .",
+        "db:generate": "prisma generate",
+        "db:push": "prisma db push"
+    },
+    "dependencies": {
+        "@prisma/client": "^5.10.2"
+    },
+    "devDependencies": {
+        "prisma": "^5.10.2",
+        "typescript": "^5.3.3",
+        "@types/node": "^20.11.24",
+        "eslint": "^8.57.0"
+    }
+}

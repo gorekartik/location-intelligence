@@ -1,0 +1,19 @@
+Testing /api/location-intel with lat=40.758, lng=-73.9855...
+Status: 200
+Duration: 11901ms
+✅ Structure: Zones present
+   - Green Zone Landmarks: 4
+   - Yellow Zone Landmarks: 0
+   - Blue Zone Landmarks: 0
+✅ Structure: Connectivity present (6978 items)
+   - No U-Turn Nodes: 0
+✅ Structure: Summary present
+--- Summary ---
+This location shows a healthy mix of amenities and commercial buildings. The high landmark density suggests strong footfall potential and a viable environment for retail ventures.
+---------------
+--- Timing (Server Side) ---
+- Spatial: 2647ms
+- Roads: 8907ms
+- Gemini: 252ms
+- Total: 11806ms
+⚠️ Performance: > 800ms

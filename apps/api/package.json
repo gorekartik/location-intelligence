@@ -1,0 +1,32 @@
+{
+    "name": "api",
+    "version": "0.1.0",
+    "type": "module",
+    "private": true,
+    "scripts": {
+        "dev": "tsx watch src/index.ts",
+        "build": "tsc",
+        "start": "node dist/index.js",
+        "lint": "eslint ."
+    },
+    "dependencies": {
+        "@fastify/cors": "^8.5.0",
+        "@google/generative-ai": "^0.24.1",
+        "@packages/database": "*",
+        "@prisma/client": "^5.10.2",
+        "@types/dotenv": "^6.1.1",
+        "@types/uuid": "^10.0.0",
+        "axios": "^0.27.2",
+        "dotenv": "^17.2.3",
+        "fastify": "^4.26.1",
+        "playwright": "^1.42.1",
+        "tsx": "^4.21.0",
+        "uuid": "^13.0.0"
+    },
+    "devDependencies": {
+        "@types/node": "^20.11.24",
+        "eslint": "^8.57.0",
+        "ts-node-dev": "^2.0.0",
+        "typescript": "^5.3.3"
+    }
+}
