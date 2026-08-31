@@ -1,9 +1,8 @@
 import axios from 'axios';
 import { chromium } from 'playwright';
-import { prisma } from '../../../../packages/database/src/index.js';
+import { prisma } from '@packages/database';
 import { v4 as uuidv4 } from 'uuid';
 import fs from 'fs';
-import path from 'path';
 
 //for Debugging (stores essential details of the API calls)
 const LOG_FILE = './sourcing.log';
@@ -30,9 +29,9 @@ export class SourcingService {
      * Queries Overpass API for landmarks within a radius
      * @param lat Latitude
      * @param lon Longitude
-     * @param radius Radius in meters (max 15000 as per requirement)
+     * @param radius Radius in meters (max 4500 as per requirement)
      */
-    async queryOverpass(lat: number, lon: number, radius: number = 15000) {
+    async queryOverpass(lat: number, lon: number, radius: number = 4500) {
         const cacheKey = `${lat},${lon},${radius}`;
         if (overpassCache.has(cacheKey)) {
             console.log('Returning cached Overpass data');
@@ -42,7 +41,7 @@ export class SourcingService {
         const query = `
       [out:json][timeout:25];
       (
-        node["amenity"="restaurant"](around:${radius},${lat},${lon});
+        node["amenity"~"restaurant|bar|cafe|hospital|pharmacy|bank|gym|school|university|"](around:${radius},${lat},${lon});
         way["amenity"~"marketplace|bank|pharmacy|hospital|restaurant|cafe"](around:${radius},${lat},${lon});
         node["building"~"commercial|retail|office"](around:${radius},${lat},${lon});
         way["building"~"commercial|retail|office"](around:${radius},${lat},${lon});
@@ -57,15 +56,22 @@ export class SourcingService {
         const endpoints = [
             'https://overpass-api.de/api/interpreter',
             'https://overpass.kumi.systems/api/interpreter',
+            'https://overpass.private.coffee/api/interpreter',
             'https://overpass.openstreetmap.ru/api/interpreter'
         ];
 
-        for (const endpoint of endpoints) {
+        const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+        for (let i = 0; i < endpoints.length; i++) {
+            const endpoint = endpoints[i];
             try {
                 console.log(`Querying Overpass at ${endpoint}...`);
                 const response = await axios.post(endpoint, `data=${encodeURIComponent(query)}`, {
                     timeout: 30000,
-                    headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                    headers: {
+                        'Content-Type': 'application/x-www-form-urlencoded',
+                        'User-Agent': 'LocationIntelligenceApp/1.0 (contact@example.com)'
+                    }
                 });
 
                 if (response.data && response.data.elements) {
@@ -74,11 +80,10 @@ export class SourcingService {
                     return data;
                 }
             } catch (error: any) {
-                console.warn(`Endpoint ${endpoint} failed: ${error.message}`);
-                if (error.response?.status === 429) {
-                    continue; // Try next endpoint on rate limit
-                }
-                // For other errors, also try next or throw if it's the last one
+                const status = error.response?.status;
+                console.warn(`Endpoint ${endpoint} failed: ${error.message} (HTTP ${status ?? 'N/A'})`);
+                // Brief pause before trying next endpoint — avoids thundering-herd on rate limiters
+                if (i < endpoints.length - 1) await sleep(3000);
             }
         }
 
@@ -109,7 +114,10 @@ export class SourcingService {
 
         try {
             const response = await axios.post('https://overpass-api.de/api/interpreter', `data=${encodeURIComponent(query)}`, {
-                headers: { 'Content-Type': 'application/x-www-form-urlencoded' }
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                    'User-Agent': 'LocationIntelligenceApp/1.0 (contact@example.com)'
+                }
             });
             const data = response.data.elements;
             roadNetworkCache.set(cacheKey, data);
@@ -171,7 +179,12 @@ export class SourcingService {
     }
 
     /**
-     * Saves landmarks to Supabase with upsert logic
+     * Saves landmarks to DB using a single-pass upsert.
+     * Relies on the UNIQUE constraint on (name, category) added in the schema.
+     * No pre-SELECT needed — ON CONFLICT handles duplicates directly.
+     *
+     * Uses parameterized $executeRaw (tagged template) to prevent SQL injection.
+     * createdAt uses DB DEFAULT (NOW()) on first insert; ON CONFLICT leaves it unchanged.
      */
     async saveLandmarks(landmarks: LandmarkInput[]) {
         logToFile(`Starting save for ${landmarks.length} landmarks`);
@@ -181,38 +194,29 @@ export class SourcingService {
 
         for (const landmark of landmarks) {
             try {
-                // Check if exists
-                const existing: any[] = await prisma.$queryRaw`
-                    SELECT id FROM "Landmark"
-                    WHERE "name" = ${landmark.name}
-                    AND "category" = ${landmark.category}
-                    LIMIT 1
-                `;
+                const id = uuidv4();
+                const hoursJson = JSON.stringify(landmark.hours);
+                const wkt = `POINT(${landmark.longitude} ${landmark.latitude})`;
 
-                const id = existing.length > 0 ? existing[0].id : uuidv4();
-                const point = `POINT(${landmark.longitude} ${landmark.latitude})`;
-
-                // Use executeRawUnsafe to be absolutely sure about the SQL string
-                // This helps avoid parameter binding issues during debugging
-                await prisma.$executeRawUnsafe(`
-                    INSERT INTO "Landmark" ("id", "name", "category", "hours", "rating", "position", "updatedAt")
+                // Fully parameterized — no string interpolation into SQL
+                await prisma.$executeRaw`
+                    INSERT INTO "Landmark" ("id", "name", "category", "hours", "rating", "position", "createdAt", "updatedAt")
                     VALUES (
-                        '${id}',
-                        '${landmark.name.replace(/'/g, "''")}',
-                        '${landmark.category}',
-                        '${JSON.stringify(landmark.hours)}'::jsonb,
+                        ${id}::uuid,
+                        ${landmark.name},
+                        ${landmark.category},
+                        ${hoursJson}::jsonb,
                         ${landmark.rating},
-                        ST_GeomFromText('${point}', 4326),
+                        ST_GeomFromText(${wkt}, 4326),
+                        NOW(),
                         NOW()
                     )
-                    ON CONFLICT (id) DO UPDATE SET
-                        "name" = EXCLUDED."name",
-                        "category" = EXCLUDED."category",
-                        "hours" = EXCLUDED."hours",
-                        "rating" = EXCLUDED."rating",
-                        "position" = EXCLUDED."position",
+                    ON CONFLICT (name, category) DO UPDATE SET
+                        "hours"     = EXCLUDED."hours",
+                        "rating"    = EXCLUDED."rating",
+                        "position"  = EXCLUDED."position",
                         "updatedAt" = NOW()
-                `);
+                `;
                 successCount++;
             } catch (error: any) {
                 failCount++;

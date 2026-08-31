@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { SearchBar } from '@/components/search/SearchBar';
 import { Sidebar } from '@/components/sidebar/Sidebar';
 import { ApiClient } from '@/lib/api-client';
@@ -16,27 +16,39 @@ const Map = dynamic(() => import('@/components/map/Map'), {
 });
 
 export default function Home() {
-    // Default to a sample location (can be changed)
-    const [center, setCenter] = useState<[number, number]>([40.7128, -74.0060]); // New York
+    const [center, setCenter] = useState<[number, number]>([40.7128, -74.0060]);
     const [locationData, setLocationData] = useState<LocationIntelResponse | null>(null);
     const [loading, setLoading] = useState(false);
+    // 'checking' = fast DB lookup in progress
+    // 'fetching_live' = Overpass is being called (slow path, shown after 2s)
+    const [loadingPhase, setLoadingPhase] = useState<'checking' | 'fetching_live'>('checking');
     const [error, setError] = useState<string | null>(null);
-    const [mapKey, setMapKey] = useState(0); // For forcing map re-render
+    const [mapKey, setMapKey] = useState(0);
+    const phaseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
     const fetchLocationData = async (lat: number, lng: number) => {
         setLoading(true);
+        setLoadingPhase('checking');
         setError(null);
+
+        // After 2 seconds with no response, assume Overpass is being called
+        // and upgrade the message to inform the user it may take a while.
+        phaseTimerRef.current = setTimeout(() => {
+            setLoadingPhase('fetching_live');
+        }, 15000);
 
         try {
             const data = await ApiClient.getLocationIntel(lat, lng);
             setLocationData(data);
             setCenter([lat, lng]);
-            setMapKey(prev => prev + 1); // Force map re-render with new center
+            setMapKey(prev => prev + 1);
         } catch (err: any) {
             setError(err.message || 'Failed to fetch location data');
             console.error('Error fetching location data:', err);
         } finally {
+            if (phaseTimerRef.current) clearTimeout(phaseTimerRef.current);
             setLoading(false);
+            setLoadingPhase('checking'); // reset for next search
         }
     };
 
@@ -83,9 +95,24 @@ export default function Home() {
             <div className="flex-1 relative">
                 {loading && (
                     <div className="absolute inset-0 bg-background/80 backdrop-blur-sm z-[999] flex items-center justify-center">
-                        <div className="flex flex-col items-center gap-2">
+                        <div className="flex flex-col items-center gap-4 max-w-sm text-center">
                             <Loader2 className="w-12 h-12 animate-spin text-primary" />
-                            <p className="text-sm text-muted-foreground">Loading location data...</p>
+                            {loadingPhase === 'checking' ? (
+                                <div className="flex flex-col gap-1">
+                                    <p className="text-sm font-medium">Checking database…</p>
+                                    <p className="text-xs text-muted-foreground">Looking for cached data nearby</p>
+                                </div>
+                            ) : (
+                                <div className="flex flex-col gap-1">
+                                    <p className="text-sm font-medium animate-pulse text-primary">
+                                        Fetching live data from OpenStreetMap…
+                                    </p>
+                                    <p className="text-xs text-muted-foreground">
+                                        This location hasn't been indexed yet.<br />
+                                        Querying live map data — this may take up to 30 seconds.
+                                    </p>
+                                </div>
+                            )}
                         </div>
                     </div>
                 )}
@@ -130,6 +157,19 @@ export default function Home() {
                             <p>Green Zone: {locationData.zones.green.length}</p>
                             <p>Yellow Zone: {locationData.zones.yellow.length}</p>
                             <p>Blue Zone: {locationData.zones.blue.length}</p>
+                            {locationData.debug && (
+                                <p
+                                    className={`mt-1 font-bold ${locationData.debug.dataSource === 'overpass_live'
+                                        ? 'text-orange-600'
+                                        : 'text-green-600'
+                                        }`}
+                                >
+                                    Source: {locationData.debug.dataSource === 'overpass_live'
+                                        ? '🌐 Live (Overpass)'
+                                        : '✅ DB Cache'
+                                    }
+                                </p>
+                            )}
                         </>
                     )}
                 </div>

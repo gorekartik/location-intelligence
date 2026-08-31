@@ -21,8 +21,9 @@ const createCustomIcon = (category: string, color: string): DivIcon => {
                 width: 20px;
                 height: 20px;
                 border-radius: 50%;
-                border: 2px solid white;
+                border: 1px solid white;
                 box-shadow: 0 2px 4px rgba(0,0,0,0.3);
+                opacity: 0.7;
             "></div>
         `,
         className: 'custom-marker',
@@ -33,20 +34,20 @@ const createCustomIcon = (category: string, color: string): DivIcon => {
 
 const getCategoryColor = (category: string): string => {
     const categoryMap: Record<string, string> = {
-        restaurant: '#ff0000ff',
-        cafe: '#f97316',
-        hospital: '#dc2626',
-        pharmacy: '#22c55e',
-        bank: '#3b82f6',
-        marketplace: '#8b5cf6',
-        park: '#10b981',
-        playground: '#84cc16',
-        stadium: '#06b6d4',
-        monument: '#a855f7',
-        memorial: '#ec4899',
-        commercial: '#f59e0b',
-        retail: '#eab308',
-        office: '#6366f1',
+        restaurant: '#ef4444',   // soft red
+        cafe: '#f97316',         // warm orange
+        hospital: '#f43f5e',     // muted pink-red (calm medical red)
+        pharmacy: '#22c55e',     // green (health)
+        bank: '#3b82f6',         // calm blue
+        marketplace: '#a855f7',  // soft purple
+        park: '#10b981',        // nature green
+        playground: '#84cc16',   // light lime green
+        stadium: '#06b6d4',     // cyan (sports/energy)
+        monument: '#8b5cf6',    // violet
+        memorial: '#ec4899',    // soft pink
+        commercial: '#f59e0b',  // amber
+        retail: '#eab308',      // yellow
+        office: '#6366f1',     // indigo
     };
 
     return categoryMap[category.toLowerCase()] || '#6b7280';

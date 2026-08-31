@@ -10,10 +10,10 @@ interface ZoneCirclesProps {
 export function ZoneCircles({ center }: ZoneCirclesProps) {
     return (
         <>
-            {/* Green Zone: 0-5km */}
+            {/* Green Zone: 0-1.5km */}
             <Circle
                 center={center}
-                radius={5000}
+                radius={1500}
                 pathOptions={{
                     color: '#10b981',
                     fillColor: '#10b981',
@@ -22,10 +22,10 @@ export function ZoneCircles({ center }: ZoneCirclesProps) {
                 }}
             />
 
-            {/* Yellow Zone: 5-10km */}
+            {/* Yellow Zone: 1.5-3km */}
             <Circle
                 center={center}
-                radius={10000}
+                radius={3000}
                 pathOptions={{
                     color: '#f59e0b',
                     fillColor: '#f59e0b',
@@ -34,10 +34,10 @@ export function ZoneCircles({ center }: ZoneCirclesProps) {
                 }}
             />
 
-            {/* Blue Zone: 10-15km */}
+            {/* Blue Zone: 3-4.5km */}
             <Circle
                 center={center}
-                radius={15000}
+                radius={4500}
                 pathOptions={{
                     color: '#3b82f6',
                     fillColor: '#3b82f6',

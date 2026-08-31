@@ -22,6 +22,8 @@ export interface LocationIntelResponse {
     connectivity: any[];
     summary: string;
     debug?: {
+        dataSource: 'db_cache' | 'overpass_live';
+        coverage: number;
         spatial: number;
         roads: number;
         gemini: number;

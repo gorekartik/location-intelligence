@@ -1,7 +1,8 @@
 import { FastifyRequest, FastifyReply } from "fastify";
-import { prisma } from "@packages/database"; // Use shared instance
-import { GeminiService } from "../services/gemini.service";
-import { sourcingService } from "../services/sourcing.service"; // Use singleton
+import { prisma } from "@packages/database";
+import { GeminiService } from "../services/gemini.service.js";
+import { sourcingService } from "../services/sourcing.service.js";
+import { coverageService } from "../services/coverage.service.js";
 
 const geminiService = new GeminiService();
 
@@ -33,28 +34,36 @@ export class MapController {
 
             const tStart = Date.now();
 
-            // Optimized Spatial Logic: Single query for all zones (0-15km)
-            // Use ST_DistanceSphere or ST_Distance(geography) to get meters
+            // Step 0: Guarantee data exists for this area.
+            // If the area was never indexed, this fetches from Overpass, cleans the
+            // data, saves it to DB, and records a coverage row — all before the
+            // spatial query below runs. Subsequent calls for the same area skip
+            // the Overpass call entirely (returns "db_cache" immediately).
+            const dataSource = await coverageService.ensureCoverage(latitude, longitude);
+            const tCoverage = Date.now();
+            console.log(`Coverage check/fetch took: ${tCoverage - tStart}ms (source: ${dataSource})`);
+
+            // Step 1: Spatial query — always reads from DB (data guaranteed above)
             const landmarks: any[] = await prisma.$queryRaw`
                 SELECT id, name, category, rating, hours, ST_AsGeoJSON(position)::json as position,
                        ST_Distance(position::geography, ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)::geography) as distance
                 FROM "Landmark"
-                WHERE ST_DWithin(position::geography, ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)::geography, 15000)
+                WHERE ST_DWithin(position::geography, ST_SetSRID(ST_MakePoint(${longitude}, ${latitude}), 4326)::geography, 4500)
             `;
 
             const tSpatial = Date.now();
-            console.log(`Spatial Query took: ${tSpatial - tStart}ms`);
+            console.log(`Spatial Query took: ${tSpatial - tCoverage}ms`);
 
-            const greenZone = landmarks.filter(l => l.distance <= 5000);
-            const yellowZone = landmarks.filter(l => l.distance > 5000 && l.distance <= 10000);
-            const blueZone = landmarks.filter(l => l.distance > 10000 && l.distance <= 15000);
+            const greenZone = landmarks.filter(l => l.distance <= 1500);
+            const yellowZone = landmarks.filter(l => l.distance > 1500 && l.distance <= 3000);
+            const blueZone = landmarks.filter(l => l.distance > 3000 && l.distance <= 4500);
 
-            // 2. Connectivity Logic
+            // Step 2: Connectivity
             const roads = await sourcingService.getRoadNetwork(latitude, longitude);
             const tRoads = Date.now();
             console.log(`Road Network took: ${tRoads - tSpatial}ms`);
 
-            // 3. Intelligence (Gemini)
+            // Step 3: Gemini intelligence summary
             const allLandmarks = [...(greenZone as any[]), ...(yellowZone as any[]), ...(blueZone as any[])];
             const summary = await geminiService.generateLocationSummary(allLandmarks);
             const tGemini = Date.now();
@@ -71,7 +80,9 @@ export class MapController {
                 connectivity: roads,
                 summary,
                 debug: {
-                    spatial: tSpatial - tStart,
+                    dataSource,
+                    coverage: tCoverage - tStart,
+                    spatial: tSpatial - tCoverage,
                     roads: tRoads - tSpatial,
                     gemini: tGemini - tRoads,
                     total: tGemini - tStart

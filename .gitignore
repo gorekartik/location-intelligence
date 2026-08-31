@@ -7,6 +7,8 @@
 .env.development
 .env.production
 .env.test
+# Always commit example files — they contain no secrets
+!.env.example
 
 # ========================
 # Dependencies
@@ -73,3 +75,14 @@ coverage/
 *.pem
 .vercel
 .render
+
+# ========================
+# Ad-hoc test / debug scripts
+# ========================
+apps/api/test-*.ts
+apps/api/check-*.ts
+apps/api/clear-db.ts
+apps/api/test_output.txt
+packages/database/prisma/migrations/check_db.cjs
+sourcing.log
+test_output.txt
